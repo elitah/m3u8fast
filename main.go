@@ -62,12 +62,17 @@ func main() {
 	//
 	var force bool
 	//
+	var httpAddr string
+	//
+	var idxFile string
+	//
 	var wg sync.WaitGroup
 	//
 	var urls []string
 	//
 	flag.IntVar(&count, "n", 1, "count")
 	flag.BoolVar(&force, "f", false, "force")
+	flag.StringVar(&httpAddr, "h", ":8080", "http adddr")
 	//
 	flag.Parse()
 	//
@@ -141,13 +146,22 @@ func main() {
 					//
 					if list, ok := p.(*m3u8.MediaPlaylist); ok {
 						//
-						for _, item := range list.Segments {
+						var segments []*m3u8.MediaSegment
+						//
+						if nil != list.Key {
+							//
+							segments = append(segments, &m3u8.MediaSegment{
+								URI: list.Key.URI,
+							})
+						}
+						//
+						segments = append(segments, list.Segments...)
+						//
+						for i, item := range segments {
 							//
 							if nil != item {
 								//
 								u.Path = item.URI
-								//
-								item.URI = item.URI[1:]
 								//
 								if dir := filepath.Dir(u.Path); "" != dir {
 									//
@@ -156,7 +170,7 @@ func main() {
 								//
 								wg.Add(1)
 								//
-								go func(url, filepath string) {
+								go func(i int, url, filepath string) {
 									//
 									defer func() {
 										//
@@ -196,12 +210,19 @@ func main() {
 										f.Close()
 									}
 									//
-									fmt.Println(time.Since(start))
-								}(u.String(), u.Path[1:])
+									fmt.Println(i, url, time.Since(start))
+								}(i, u.String(), u.Path[1:])
+							}
+							//
+							if 0 == i {
+								//
+								wg.Wait()
 							}
 						}
 						//
 						if f, err := os.OpenFile(fmt.Sprintf("index_%d.m3u8", time.Now().Unix()), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644); nil == err {
+							//
+							idxFile = f.Name()
 							//
 							if b := list.Encode(); nil != b {
 								//
@@ -223,6 +244,22 @@ func main() {
 			fmt.Println(err)
 		}
 	}
+	//
+	go func() {
+		//
+		if "" != httpAddr {
+			//
+			fmt.Println("load index file from: http://", httpAddr, "/", idxFile)
+			//
+			http.ListenAndServe(httpAddr, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				//
+				if nil != r.URL && 2 <= len(r.URL.Path) {
+					//
+					http.ServeFile(w, r, r.URL.Path[1:])
+				}
+			}))
+		}
+	}()
 	//
 	wg.Wait()
 }
