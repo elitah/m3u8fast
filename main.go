@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -157,11 +158,34 @@ func main() {
 						//
 						segments = append(segments, list.Segments...)
 						//
+						downloadURL := ""
+						//
 						for i, item := range segments {
 							//
 							if nil != item {
 								//
-								u.Path = item.URI
+								downloadURL = ""
+								//
+								if strings.HasPrefix(item.URI, "http://") ||
+									strings.HasPrefix(item.URI, "https://") {
+									//
+									if _u, err := urlParse(item.URI); nil == err {
+										//
+										u.Path = _u.Path
+										//
+										downloadURL = _u.String()
+									}
+								} else {
+									//
+									u.Path = item.URI
+									//
+									downloadURL = u.String()
+								}
+								//
+								if "" == downloadURL {
+									//
+									continue
+								}
 								//
 								if dir := filepath.Dir(u.Path); "" != dir {
 									//
@@ -211,7 +235,7 @@ func main() {
 									}
 									//
 									fmt.Println(i, url, time.Since(start))
-								}(i, u.String(), u.Path[1:])
+								}(i, downloadURL, u.Path[1:])
 							}
 							//
 							if 0 == i {
@@ -244,6 +268,8 @@ func main() {
 			fmt.Println(err)
 		}
 	}
+	//
+	wg.Add(1)
 	//
 	go func() {
 		//
