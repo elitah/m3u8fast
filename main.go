@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -71,7 +72,7 @@ func main() {
 	//
 	var urls []string
 	//
-	flag.IntVar(&count, "n", 1, "count")
+	flag.IntVar(&count, "n", 8, "count")
 	flag.BoolVar(&force, "f", false, "force")
 	flag.StringVar(&httpAddr, "h", ":8080", "http adddr")
 	//
@@ -250,9 +251,60 @@ func main() {
 							//
 							if b := list.Encode(); nil != b {
 								//
-								f.Truncate(0)
-								//
-								f.ReadFrom(b)
+								switch {
+								default:
+									//
+									if p, t, err := m3u8.DecodeFrom(bytes.NewReader(b.Bytes()), true); nil == err {
+										//
+										if m3u8.MEDIA == t {
+											//
+											if list_new, ok := p.(*m3u8.MediaPlaylist); ok {
+												//
+												if nil != list_new.Key {
+													//
+													if u, err := u.Parse(list_new.Key.URI); nil == err {
+														//
+														if "" != u.Path {
+															//
+															list_new.Key.URI = u.Path
+														}
+													}
+												}
+												//
+												for _, item := range list_new.Segments {
+													//
+													if nil != item {
+														//
+														if strings.HasPrefix(item.URI, "http://") ||
+															strings.HasPrefix(item.URI, "https://") {
+															//
+															if u, err := u.Parse(item.URI); nil == err {
+																//
+																if "" != u.Path {
+																	//
+																	item.URI = u.Path
+																}
+															}
+														}
+													}
+												}
+												//
+												if _b := list_new.Encode(); nil != _b {
+													//
+													f.Truncate(0)
+													//
+													f.ReadFrom(_b)
+													//
+													break
+												}
+											}
+										}
+									}
+									//
+									f.Truncate(0)
+									//
+									f.ReadFrom(b)
+								}
 							}
 							//
 							f.Close()
